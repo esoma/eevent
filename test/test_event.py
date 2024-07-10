@@ -6,6 +6,7 @@ import pytest
 
 # python
 import asyncio
+import weakref
 
 
 @pytest.mark.parametrize("data", [1, None])
@@ -56,6 +57,54 @@ def test_then(event_loop):
 
     event_loop.run_until_complete(_main())
     assert results == [1, 2]
+
+
+def test_then_weakref(event_loop):
+    event = Event()
+
+    results = []
+
+    async def _count(data):
+        results.append(data)
+        del scope["count"]
+
+    scope = {"count": _count}
+    bind = event.then(weakref.ref(_count))
+    del _count
+
+    async def _main():
+        event(1)
+        event(2)
+        event(3)
+        await asyncio.sleep(0)
+
+    event_loop.run_until_complete(_main())
+    assert results == [1]
+
+
+def test_then_weakmethod(event_loop):
+    event = Event()
+
+    results = []
+
+    class X:
+        def __init__(self):
+            self.bind = event.then(weakref.WeakMethod(self._count))
+
+        async def _count(self, data):
+            results.append(data)
+            del scope["x"]
+
+    scope = {"x": X()}
+
+    async def _main():
+        event(1)
+        event(2)
+        event(3)
+        await asyncio.sleep(0)
+
+    event_loop.run_until_complete(_main())
+    assert results == [1]
 
 
 def test_then_context(event_loop):
