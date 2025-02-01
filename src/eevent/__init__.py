@@ -164,9 +164,11 @@ def auto_bind(cls: _C) -> _C:
         return cls
     on_event_then = {oet for oet in on_event_then if oet._owner is cls}
 
-    @wraps(cls.__init__)
+    original_init = cls.__init__
+
+    @wraps(original_init)
     def wrapped_init(self: _C, *args: Any, **kwargs: Any) -> None:
-        super(cls, self).__init__(*args, **kwargs)
+        original_init(self, *args, **kwargs)
         try:
             auto_binds = self.__eevent_auto_binds__  # type: ignore
         except AttributeError:
