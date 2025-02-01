@@ -1,12 +1,11 @@
-# eevent
-# python
 import asyncio
 import weakref
 
-# pytest
 import pytest
 
 from eevent import Event
+from eevent import auto_bind
+from eevent import on
 
 
 @pytest.mark.parametrize("data", [1, None])
@@ -160,3 +159,76 @@ def test_or(event_loop):
         assert await (event_1 | event_2 | event_3) == (event_3, 3)
 
     event_loop.run_until_complete(_await_event())
+
+
+def test_on_basic(event_loop):
+    event1 = Event()
+    event2 = Event()
+    results = []
+    get_x = None
+
+    def _get_event2(s):
+        nonlocal get_x
+        get_x = s
+        return event2
+
+    @auto_bind
+    class X:
+        @on(event=event1)
+        async def callback1(self, data) -> None:
+            results.append(data)
+
+        @on(get_event=_get_event2)
+        async def callback2(self, data) -> None:
+            results.append(data + 10)
+
+    x = X()
+
+    async def _main():
+        event1(1)
+        event2(1)
+        event1(2)
+        event2(2)
+
+    event_loop.run_until_complete(_main())
+
+    assert results == [1, 11, 2, 12]
+    assert get_x is x
+
+
+def test_on_inheritance(event_loop):
+    results = []
+
+    @auto_bind
+    class X:
+        eventx = Event()
+
+        @on(get_event=lambda s: s.eventx)
+        async def callback(self, data) -> None:
+            results.append(data)
+
+    class Y(X):
+        eventy = Event()
+
+        @on(get_event=lambda s: s.eventy)
+        async def callback(self, data) -> None:
+            assert False
+
+    @auto_bind
+    class Z(Y):
+        eventz = Event()
+
+        @on(get_event=lambda s: s.eventz)
+        async def callback(self, data) -> None:
+            results.append(data + 10)
+
+    z = Z()
+
+    async def _main():
+        z.eventx(1)
+        z.eventy(2)
+        z.eventz(3)
+
+    event_loop.run_until_complete(_main())
+
+    assert results == [1, 13]

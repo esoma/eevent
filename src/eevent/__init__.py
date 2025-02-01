@@ -1,10 +1,11 @@
-__all__ = ["Event", "EventBind", "OrEvent"]
+__all__ = ["auto_bind", "Event", "EventBind", "on", "OrEvent"]
 
 from asyncio import FIRST_COMPLETED
 from asyncio import Future
 from asyncio import create_task
 from asyncio import wait
 from functools import wraps
+from types import MethodType
 from typing import Any
 from typing import Callable
 from typing import Coroutine
@@ -12,9 +13,12 @@ from typing import Generator
 from typing import Generic
 from typing import Self
 from typing import TypeVar
+from typing import overload
+from weakref import WeakMethod
 from weakref import WeakSet
 from weakref import ref
 
+_C = TypeVar("_C", bound=type)
 _T = TypeVar("_T")
 _T1 = TypeVar("_T1")
 _T2 = TypeVar("_T2")
@@ -109,3 +113,70 @@ class OrEvent(Generic[_T]):
         for first in done:
             return future_event[first], await first
         assert False
+
+
+class on(Generic[_C, _T]):
+    @overload
+    def __init__(self, *, event: Event[_T]) -> None: ...
+
+    @overload
+    def __init__(self, *, get_event: Callable[[_C], Event[_T]]) -> None: ...
+
+    def __init__(
+        self, *, event: Event[_T] | None = None, get_event: Callable[[_C], Event[_T]] | None = None
+    ):
+        if event is None and get_event is None:
+            raise TypeError("event or get_event must be supplied")
+        if event is not None and get_event is not None:
+            raise TypeError("event or get_event must be supplied, but not both")
+        self._event = event
+        self._get_event = get_event
+
+    def __call__(
+        self, f: Callable[[_C, _T], Coroutine[Any, Any, None]]
+    ) -> Callable[[_C, _T], Coroutine[Any, Any, None]]:
+        return _OnEventThen(self, f)
+
+
+class _OnEventThen(Generic[_C, _T]):
+    def __init__(self, _on: on[_C, _T], method: Callable[[_C, _T], Coroutine[Any, Any, None]]):
+        self._owner = None
+        self._on = _on
+        self._method = method
+
+    async def __call__(self, instance: _C, event: _T) -> Any:
+        return await self._method(instance, event)
+
+    def __set_name__(self, owner, name):
+        try:
+            on_event_then = owner.__eevent_on_event_then__
+        except AttributeError:
+            on_event_then = owner.__eevent_on_event_then__ = set()
+        self._owner = owner
+        on_event_then.add(self)
+        setattr(owner, name, self._method)
+
+
+def auto_bind(cls: _C) -> _C:
+    try:
+        on_event_then = cls.__eevent_on_event_then__  # type: ignore
+    except AttributeError:
+        return cls
+    on_event_then = {oet for oet in on_event_then if oet._owner is cls}
+
+    @wraps(cls.__init__)
+    def wrapped_init(self: _C, *args: Any, **kwargs: Any) -> None:
+        super(cls, self).__init__(*args, **kwargs)
+        try:
+            auto_binds = self.__eevent_auto_binds__  # type: ignore
+        except AttributeError:
+            auto_binds = self.__eevent_auto_binds__ = []
+        for oet in on_event_then:
+            event = oet._on._event
+            if event is None:
+                event = oet._on._get_event(self)
+            auto_binds.append(event.then(WeakMethod(MethodType(oet._method, self))))
+
+    cls.__init__ = wrapped_init  # type: ignore
+
+    return cls
