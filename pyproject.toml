@@ -1,3 +1,7 @@
+[project]
+name = "eevent"
+requires-python = ">=3.12"
+
 [tool.poetry]
 name = "eevent"
 version = "0.1.0"
@@ -14,3 +18,10 @@ pytest-cov = "4.1.0"
 [build-system]
 requires = ["poetry-core", "setuptools==69.0.2"]
 build-backend = "poetry.core.masonry.api"
+
+[virtualenvs]
+in-project = true
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"

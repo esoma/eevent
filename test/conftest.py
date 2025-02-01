@@ -1,9 +1,9 @@
 # pytest
-import pytest
-
 # python
 import asyncio
 import gc
+
+import pytest
 
 
 @pytest.fixture

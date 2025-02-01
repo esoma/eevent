@@ -1,12 +1,12 @@
 # eevent
-from eevent import Event
+# python
+import asyncio
+import weakref
 
 # pytest
 import pytest
 
-# python
-import asyncio
-import weakref
+from eevent import Event
 
 
 @pytest.mark.parametrize("data", [1, None])

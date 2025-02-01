@@ -1,0 +1,11 @@
+line-length = 99
+
+[format]
+skip-magic-trailing-comma = true
+
+[lint]
+fixable = ["I"]
+select = ["I"]
+
+[lint.isort]
+force-single-line = true

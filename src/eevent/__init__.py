@@ -1,8 +1,5 @@
-from __future__ import annotations
-
 __all__ = ["Event", "EventBind", "OrEvent"]
 
-# python
 from asyncio import FIRST_COMPLETED
 from asyncio import Future
 from asyncio import create_task
@@ -76,7 +73,7 @@ class Event(Generic[_T]):
                 create_task(bind._callback(data))
         self._binds -= closed_binds
 
-    def __or__(self: Event[_T1], other: Event[_T2]) -> OrEvent[_T1 | _T2]:
+    def __or__(self: "Event[_T1]", other: "Event[_T2]") -> "OrEvent[_T1 | _T2]":
         return OrEvent(self, other)
 
     def _get_future(self) -> Future[_T]:
@@ -103,7 +100,7 @@ class OrEvent(Generic[_T]):
     def __await__(self) -> Generator[Any, None, tuple[Event, _T]]:
         return self._await().__await__()
 
-    def __or__(self: OrEvent[_T1], other: Event[_T2]) -> OrEvent[_T1 | _T2]:
+    def __or__(self: "OrEvent[_T1]", other: Event[_T2]) -> "OrEvent[_T1 | _T2]":
         return OrEvent(*self._events, other)
 
     async def _await(self) -> tuple[Event, _T]:
