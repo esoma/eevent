@@ -8,6 +8,7 @@ from functools import wraps
 from types import MethodType
 from typing import Any
 from typing import Callable
+from typing import Concatenate
 from typing import Coroutine
 from typing import Generator
 from typing import Generic
@@ -24,22 +25,27 @@ _T1 = TypeVar("_T1")
 _T2 = TypeVar("_T2")
 
 
-class EventBind(Generic[_T]):
-    _callback: Callable[[_T], Coroutine[Any, Any, None]] | None
+class EventBind[T, **P]:
+    _callback: Callable[Concatenate[T, P], Coroutine[Any, Any, None]] | None
 
     def __init__(
         self,
-        callback: Callable[[_T], Coroutine[Any, Any, None]]
-        | ref[Callable[[_T], Coroutine[Any, Any, None]]],
+        callback: Callable[Concatenate[T, P], Coroutine[Any, Any, None]]
+        | ref[Callable[Concatenate[T, P], Coroutine[Any, Any, None]]],
+        *args: P.args,
+        **kwargs: P.kwargs,
     ):
+        self._args = args
+        self._kwargs = kwargs
+
         if isinstance(callback, ref):
 
             @wraps(callback)
-            async def weak_callback(data: _T) -> Any:
+            async def weak_callback(data: T, *args: P.args, **kwargs: P.kwargs) -> Any:
                 strong_callback = callback()
                 if strong_callback is None:
                     return
-                return await strong_callback(data)
+                return await strong_callback(data, *args, **kwargs)
 
             self._callback = weak_callback
         else:
@@ -59,7 +65,7 @@ class Event(Generic[_T]):
     _future: Future[_T] | None = None
 
     def __init__(self) -> None:
-        self._binds: WeakSet[EventBind[_T]] = WeakSet()
+        self._binds: WeakSet[EventBind[_T, Any]] = WeakSet()
 
     def __await__(self) -> Generator[Any, None, _T]:
         return self._get_future().__await__()
@@ -69,12 +75,12 @@ class Event(Generic[_T]):
             self._future.set_result(data)
             self._future = None
 
-        closed_binds: set[EventBind[_T]] = set()
+        closed_binds: set[EventBind[_T, Any]] = set()
         for bind in self._binds:
             if bind._callback is None:
                 closed_binds.add(bind)
             else:
-                create_task(bind._callback(data))
+                create_task(bind._callback(data, *bind._args, **bind._kwargs))
         self._binds -= closed_binds
 
     def __or__(self: "Event[_T1]", other: "Event[_T2]") -> "OrEvent[_T1 | _T2]":
@@ -85,12 +91,14 @@ class Event(Generic[_T]):
             self._future = Future()
         return self._future
 
-    def then(
+    def then[**P](
         self,
-        callback: Callable[[_T], Coroutine[Any, Any, None]]
-        | ref[Callable[[_T], Coroutine[Any, Any, None]]],
-    ) -> EventBind[_T]:
-        event_bind = EventBind(callback)
+        callback: Callable[Concatenate[_T, P], Coroutine[Any, Any, None]]
+        | ref[Callable[Concatenate[_T, P], Coroutine[Any, Any, None]]],
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> EventBind[_T, P]:
+        event_bind = EventBind(callback, *args, **kwargs)
         self._binds.add(event_bind)
         return event_bind
 

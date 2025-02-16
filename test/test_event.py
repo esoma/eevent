@@ -1,5 +1,6 @@
 import asyncio
 import weakref
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -36,15 +37,17 @@ def test_event_await(event_loop):
     assert result
 
 
-def test_then(event_loop):
+@pytest.mark.parametrize("args", [(), (MagicMock(), MagicMock())])
+@pytest.mark.parametrize("kwargs", [{}, {"a": MagicMock(), "b": MagicMock()}])
+def test_then(event_loop, args, kwargs):
     event = Event()
 
     results = []
 
-    async def _count(data):
-        results.append(data)
+    async def _count(data, *args, **kwargs):
+        results.append((data, args, kwargs))
 
-    bind = event.then(_count)
+    bind = event.then(_count, *args, **kwargs)
 
     async def _main():
         event(1)
@@ -55,20 +58,22 @@ def test_then(event_loop):
         await asyncio.sleep(0)
 
     event_loop.run_until_complete(_main())
-    assert results == [1, 2]
+    assert results == [(1, args, kwargs), (2, args, kwargs)]
 
 
-def test_then_weakref(event_loop):
+@pytest.mark.parametrize("args", [(), (MagicMock(), MagicMock())])
+@pytest.mark.parametrize("kwargs", [{}, {"a": MagicMock(), "b": MagicMock()}])
+def test_then_weakref(event_loop, args, kwargs):
     event = Event()
 
     results = []
 
-    async def _count(data):
-        results.append(data)
+    async def _count(data, *args, **kwargs):
+        results.append((data, args, kwargs))
         del scope["count"]
 
     scope = {"count": _count}
-    bind = event.then(weakref.ref(_count))
+    bind = event.then(weakref.ref(_count), *args, **kwargs)
     del _count
 
     async def _main():
@@ -78,20 +83,22 @@ def test_then_weakref(event_loop):
         await asyncio.sleep(0)
 
     event_loop.run_until_complete(_main())
-    assert results == [1]
+    assert results == [(1, args, kwargs)]
 
 
-def test_then_weakmethod(event_loop):
+@pytest.mark.parametrize("args", [(), (MagicMock(), MagicMock())])
+@pytest.mark.parametrize("kwargs", [{}, {"a": MagicMock(), "b": MagicMock()}])
+def test_then_weakmethod(event_loop, args, kwargs):
     event = Event()
 
     results = []
 
     class X:
         def __init__(self):
-            self.bind = event.then(weakref.WeakMethod(self._count))
+            self.bind = event.then(weakref.WeakMethod(self._count), *args, **kwargs)
 
-        async def _count(self, data):
-            results.append(data)
+        async def _count(self, data, *args, **kwargs):
+            results.append((data, args, kwargs))
             del scope["x"]
 
     scope = {"x": X()}
@@ -103,7 +110,7 @@ def test_then_weakmethod(event_loop):
         await asyncio.sleep(0)
 
     event_loop.run_until_complete(_main())
-    assert results == [1]
+    assert results == [(1, args, kwargs)]
 
 
 def test_then_context(event_loop):
