@@ -1,12 +1,11 @@
 [project]
 name = "eevent"
 requires-python = ">=3.12"
-
-[tool.poetry]
-name = "eevent"
 version = "0.3.0"
 description = "Asyncio Events"
-authors = ["Erik Soma <stillusingirc@gmail.com>"]
+authors = [
+    {name="Erik Soma",  email="stillusingirc@gmail.com"}
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
