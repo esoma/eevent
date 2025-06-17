@@ -1,7 +1,7 @@
 [project]
 name = "eevent"
 requires-python = ">=3.12"
-version = "0.3.0"
+version = "0.3.1"
 description = "Asyncio Events"
 authors = [
     {name="Erik Soma",  email="stillusingirc@gmail.com"}
